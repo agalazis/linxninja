@@ -1,2 +1,2 @@
 # linxninja
-The links ninja server
+The links ninja stream link crowdsourcing application
