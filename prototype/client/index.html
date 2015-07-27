@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Link Manager</title>
+  <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.1.1/css/bootstrap.min.css">
+</head>
+<body>
+
+
+  <div class="container">
+    <h1>Link Manager</h1>
+    <hr />
+    <div class="page"></div>
+  </div>
+
+
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.2/jquery.min.js" type="text/javascript"></script>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.4.2/underscore-min.js" type="text/javascript"></script>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/backbone.js/0.9.2/backbone-min.js"></script>
+
+  <script type="text/template" id="link-list-template">
+    <a href="#/new" class="btn btn-primary">New</a>
+    <hr />
+    <table class="table striped">
+      <thead>
+        <tr>
+          <th>Name</th><th>URL</th><th>Genre</th><th>Country</th><th>City</th>
+        </tr>
+      </thead>
+      <tbody>
+  
+        <% _.each(links, function(link) { %>
+          <tr>
+			<td><%= htmlEncode(link.get('name')) %></td>
+            <td><%= htmlEncode(link.get('url')) %></td>
+            <td><%= htmlEncode(link.get('genre')) %></td>
+            <td><%= htmlEncode(link.get('country')) %></td>
+			<td><%= htmlEncode(link.get('city')) %></td>
+            <td><a class="btn" href="#/edit/<%= link.id %>">Edit</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </script>
+
+  <script type="text/template" id="edit-link-template">
+    <form class="edit-link-form">
+      <legend><%= link ? 'Edit' : 'New' %> Link</legend>
+        <label>Name</label>
+        <input name="name" type="text" value="<%= link ? link.get('name') : '' %>">
+        <label>URL</label>
+        <input name="url" type="text" value="<%= link ? link.get('url') : '' %>">
+        <label>Genre</label>
+        <input name="genre" type="text" value="<%= link ? link.get('genre') : '' %>">
+        <label>Country</label>
+        <input name="country" type="text" value="<%= link ? link.get('country') : '' %>">
+        <label>City</label>
+        <input name="city" type="text" value="<%= link ? link.get('city') : '' %>">
+        <hr />
+       <button type="submit" class="btn"><%= link ? 'Update' : 'Create' %></button>
+       <% if(link) { %>
+        <input type="hidden" name="id" value="<%= link.id %>" />
+       <button data-link-id="<%= link.id %>" class="btn btn-danger delete">Delete</button>
+       <% }; %>
+    </form>
+  </script>
+
+  <script>
+  
+  <script>
+    function htmlEncode(value){
+      return $('<div/>').text(value).html();
+    }
+    $.fn.serializeObject = function() {
+      var o = {};
+      var a = this.serializeArray();
+      $.each(a, function() {
+          if (o[this.name] !== undefined) {
+              if (!o[this.name].push) {
+                  o[this.name] = [o[this.name]];
+              }
+              o[this.name].push(this.value || '');
+          } else {
+              o[this.name] = this.value || '';
+          }
+      });
+      return o;
+    };
+
+    $.ajaxPrefilter( function( options, originalOptions, jqXHR ) {
+      options.url = 'http://localhost:3000' + options.url;
+    });
+
+    var Links = Backbone.Collection.extend({
+      url: '/links'
+    });
+
+    var Link = Backbone.Model.extend({
+      urlRoot: '/links'
+    });
+
+    var LinkListView = Backbone.View.extend({
+      el: '.page',
+      render: function () {
+        var that = this;
+        var links = new Links();
+        links.fetch({
+          success: function (links) {
+            var template = _.template($('#link-list-template').html(), {links: links.models});
+            that.$el.html(template);
+          }
+        })
+      }
+    });
+
+    var linkListView = new linkListView();
+    /*edit view
+    provide the element(el)
+    declare events(events) and functions to be executed here 
+    save 
+    1serialize form(cuurrent target of event)
+    2create new object
+    3 object.save(srislized form object,cb);
+    4use router.navigate to navigate back
+    5 If not new (has id in the link(options))render:new object - provide id, use fetch(success cb)
+    6)success cb shoud render the template this time using underscore
+    */
+    
+    var LinkEditView = Backbone.View.extend({
+    
+      el: '.page',
+      events: {
+        'submit .edit-link-form': 'saveLink',
+        'click .delete': 'deleteLink'
+      },
+      saveLink: function (ev) {
+        var linkDetails = $(ev.currentTarget).serializeObject();
+        var link = new Link();
+        link.save(linkDetails, {
+          success: function (link) {
+            router.navigate('', {trigger:true});
+          }
+        });
+        return false;
+      },
+      deleteLink: function (ev) {
+        this.link.destroy({
+          success: function () {
+            console.log('destroyed');
+            router.navigate('', {trigger:true});
+          }
+        });
+        return false;
+      },
+      render: function (options) {
+        var that = this;
+        if(options.id) {
+          that.link = new Link({id: options.id});
+          that.link.fetch({
+            success: function (link) {    
+              var template = _.template($('#edit-link-template').html(), {link: link});
+              that.$el.html(template);
+            }
+          })
+        } else {
+          var template = _.template($('#edit-link-template').html(), {link: null});
+          that.$el.html(template);
+        }
+      }
+    });
+
+    var linkEditView = new LinkEditView();
+    //Step 1 declare each route uri here
+    var Router = Backbone.Router.extend({
+        routes: {
+          "": "home", 
+          "edit/:id": "edit",
+          "new": "edit",
+        }
+    });
+
+    var router = new Router;
+    router.on('route:home', function() {
+      // render link list
+      linkListView.render();
+    })
+    router.on('route:edit', function(id) {
+      linkEditView.render({id: id});
+    })
+    Backbone.history.start();
+  </script>
+
+
+</body>
+</html> 
